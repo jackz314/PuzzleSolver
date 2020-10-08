@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.jackz314.puzzlesolver.MovableLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/solveBtn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:adjustViewBounds="true"
+        android:padding="0dp"
+        android:scaleType="fitXY"
+        android:src="@drawable/ic_play_gray"
+        app:layout_constraintBottom_toTopOf="@+id/statusText"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_chainStyle="packed"
+        app:srcCompat="@drawable/ic_play_gray" />
+
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="#828282"
+        android:text="Idle"
+        android:textAppearance="@style/TextAppearance.AppCompat.Body2"
+        android:textColor="#FFFFFF"
+        android:textSize="12sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="@+id/solveBtn"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="@+id/solveBtn"
+        app:layout_constraintTop_toBottomOf="@+id/solveBtn" />
+
+    <TextView
+        android:id="@+id/moveStateText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="#828282"
+        android:textAppearance="@style/TextAppearance.AppCompat.Body2"
+        android:textColor="#FFFFFF"
+        android:textSize="8sp"
+        app:layout_constraintEnd_toEndOf="@+id/solveBtn"
+        app:layout_constraintStart_toStartOf="@+id/solveBtn"
+        app:layout_constraintTop_toBottomOf="@+id/statusText"
+        tools:text="TEXT1\nTEXT2" />
+</com.jackz314.puzzlesolver.MovableLayout>
