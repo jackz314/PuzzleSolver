@@ -30,6 +30,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         val durationPref = "DURATION"
+        val delayPref = "DELAY"
         val expIdlePref = "EXPONENTIAL_IDLE"
         val useRootPref = "USE_ROOT"
     }
@@ -57,21 +58,37 @@ class MainActivity : AppCompatActivity() {
 
     private fun start(){
         if(!SolveService.running) {
+            /*if(GestureService.getInstance() == null){
+                Toast.makeText(this, "Accessibility Service not available, try setting it manually", Toast.LENGTH_SHORT).show()
+                openAccessibilitySettings()
+            }*/
             val intent = Intent(applicationContext, SolveService::class.java)
-            val swipeDuration =
+            var swipeDuration =
                 findViewById<EditText>(R.id.durationEdit).text.toString().run {if (length > 0 && isDigitsOnly()) toInt() else 10}
+            if (swipeDuration < 1) {
+                swipeDuration = 1
+                findViewById<EditText>(R.id.durationEdit).setText("1")
+            }
+            var delay =
+                findViewById<EditText>(R.id.delayEdit).text.toString().run {if (length > 0 && isDigitsOnly()) toInt() else 10}
+            if (delay < 0) {
+                delay = 0
+                findViewById<EditText>(R.id.delayEdit).setText("0")
+            }
             val isExpIdle = findViewById<CheckBox>(R.id.expIdleCheck).isChecked
             GlobalScope.launch(Dispatchers.IO) {
                 val sharedPref = getSharedPreferences(
                     getString(R.string.preference_file_key), Context.MODE_PRIVATE)
                 with(sharedPref.edit()) {
                     putInt(durationPref, swipeDuration)
+                    putInt(delayPref, delay)
                     putBoolean(expIdlePref, isExpIdle)
                     putBoolean(useRootPref, findViewById<CheckBox>(R.id.useRootCheck).isChecked)
                     apply()
                 }
             }
             intent.putExtra(durationPref, swipeDuration)
+            intent.putExtra(delayPref, delay)
             intent.putExtra(expIdlePref, isExpIdle)
             startService(intent)
             Intent(this, SolveService::class.java).apply {

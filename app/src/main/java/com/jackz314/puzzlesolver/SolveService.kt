@@ -25,6 +25,7 @@ import android.os.*
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.*
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -37,10 +38,7 @@ import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.jackz314.puzzlesolver.MovableLayout.OnInterceptTouchListener
 import com.jackz314.puzzlesolver.TorusPuzzleSolver.Companion.Dir
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.*
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
@@ -100,6 +98,7 @@ class SolveService : Service() {
     private var mToast: Toast? = null
 
     private var mDuration = 10
+    private var mDelay = 0
     private var mExpIdle = false
 
     //solve stuff
@@ -110,6 +109,7 @@ class SolveService : Service() {
 
     private var moveHistoryList = LinkedList<String>()
 
+    private var mMoveMaker: MoveMaker? = null
     private lateinit var gestureService: GestureService
 
     // Binder given to clients
@@ -146,8 +146,9 @@ class SolveService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        mDuration = intent?.getIntExtra("DURATION", mDuration) ?: mDuration
-        mExpIdle = intent?.getBooleanExtra("EXPONENTIAL_IDLE", false) ?: false
+        mDuration = intent?.getIntExtra(MainActivity.durationPref, mDuration) ?: mDuration
+        mDelay = intent?.getIntExtra(MainActivity.delayPref, mDelay) ?: mDelay
+        mExpIdle = intent?.getBooleanExtra(MainActivity.expIdlePref, false) ?: false
         setup()
         return START_STICKY
     }
@@ -388,6 +389,7 @@ class SolveService : Service() {
         running = false
         Toast.makeText(this, "Stopped solving", Toast.LENGTH_SHORT).show()
 //            solveBtn.setImageResource(R.drawable.ic_play_gray)
+        mMoveMaker?.cancelMoves()
         stopService = true
         mBitmap?.recycle()
         mProcessedBitmap?.recycle()
@@ -465,7 +467,7 @@ class SolveService : Service() {
         if (!running) return
         setStatusText("Making Moves")
         Log.d(TAG, "makeMoves: Making moves: board config: $boardConfig")
-        val mm = MoveMaker(
+        mMoveMaker = MoveMaker(
             moves.toMutableList(),
             boardConfig,
             object : MoveMaker.MovingStateListener {
@@ -491,28 +493,63 @@ class SolveService : Service() {
                         moveHistoryList.clear()
                         toast("Solved!")
                     }
-                    if (!running) return
-                    Handler(Looper.getMainLooper()).postDelayed({
+                    if (!running || !mExpIdle) {
+                        stop()
+                        return
+                    }
+                    setStatusText("Opening Next Puzzle")
+                    GlobalScope.launch {
+                        delay(3000)
+                        if (!running) return@launch
+                        if (clickBtn("Great! Claim", 730, 2430)) {
+                            delay(400)
+                            if (!running) return@launch
+                            clickBtn("Play Torus Puzzle", 730, 1950)
+                            delay(400)
+                            if (!running) return@launch
+                            clickBtn("Hard - ", 730, 1667)
+                        }
+                        delay(1000)
+                        if (!running) return@launch
+                        if (gestureService.rootInActiveWindow.findAccessibilityNodeInfosByText("I Give Up!")
+                                .none {it.className.contains("Button")}) {//not in the right state, try again
+                            Log.d(TAG, "allMovesComplete: not in the right state, clicking again")
+                            if (gestureService.rootInActiveWindow.findAccessibilityNodeInfosByText("Play Torus Puzzle")
+                                    .any {it.className.contains("Button")}) {
+                                clickBtn("Play Torus Puzzle", 730, 1950)
+                                delay(1000)
+                                clickBtn("Hard - ", 730, 1667)
+                                delay(1000)
+                                continueScreenCapture()
+                            } else {
+                                Log.e(TAG, "allMovesComplete: In weird state, no play btn available")
+                            }
+                        } else {
+                            continueScreenCapture()
+                        }
+                    }
+                    /*Handler(Looper.getMainLooper()).postDelayed({
                         if (!running) return@postDelayed
-                        gestureService.click(730, 2430)
-                    }, 3000)
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        if (!running) return@postDelayed
-                        gestureService.click(730, 1950)
-                    }, 3500)
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        if (!running) return@postDelayed
-                        gestureService.click(730, 1667)
+                        clickBtn("Great! Claim", 730, 2430)
                     }, 4000)
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        if (!running) return@postDelayed
+                        clickBtn("Play Torus Puzzle", 730, 1950)
+                    }, 4100)
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        if (!running) return@postDelayed
+                        clickBtn("Hard - ", 730, 1667)
+                    }, 4200)
                     Handler(Looper.getMainLooper()).postDelayed({
                         if (!running) return@postDelayed
                         if (gestureService.rootInActiveWindow.findAccessibilityNodeInfosByText("I Give Up!")
                                 .none {it.className.contains("Button")}) {//not in the right state, try again
+                            Log.d(TAG, "allMovesComplete: not in the right state, clicking again")
                             if (gestureService.rootInActiveWindow.findAccessibilityNodeInfosByText("Play Torus Puzzle")
                                     .any {it.className.contains("Button")}) {
-                                gestureService.click(730, 1950)
+                                clickBtn("Play Torus Puzzle", 730, 1950)
                                 Handler(Looper.getMainLooper()).postDelayed({
-                                    gestureService.click(730, 1667)
+                                    clickBtn("Hard - ", 730, 1667)
                                 }, 1000)
                                 Handler(Looper.getMainLooper()).postDelayed({
                                     continueScreenCapture()
@@ -520,34 +557,36 @@ class SolveService : Service() {
                             } else {
                                 Log.e(TAG, "allMovesComplete: In weird state, no play btn available")
                             }
-                        }
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {//use accessibility takeScreenshot
-                            takeAccessibilityScreenshot()
                         } else {
-                            resumeCapture = true
-                            prepareStart()
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {//use accessibility takeScreenshot
+                                takeAccessibilityScreenshot()
+                            } else {
+                                resumeCapture = true
+                                prepareStart()
+                            }
                         }
-                    }, 5000)
-                    /*GlobalScope.launch {
-                        delay(500L)
-                        Log.d(TAG, "allMovesComplete: DELAY 1")
-                        GestureService.getInstance()!!.click(730, 2430)//temporary used to repeat puzzle
-                        Log.d(TAG, "allMovesComplete: DELAY 2")
-                        delay(500L)
-                        Log.d(TAG, "allMovesComplete: DELAY 3")
-                        GestureService.getInstance()!!.click(730, 1950)//temporary used to repeat puzzle
-                        delay(500L)
-                        Log.d(TAG, "allMovesComplete: DELAY 4")
-                        GestureService.getInstance()!!.click(730, 1667)//temporary used to repeat puzzle
-                        delay(500L)
-                        Log.d(TAG, "allMovesComplete: DELAY 5")
-                        Handler(Looper.getMainLooper()).post { start() }
-                    }*/
+                    }, 6000)*/
                 }
 
-            }, mDuration
+            }, mDuration, mDelay
         )
-        mm.makeMoves()
+        mMoveMaker!!.makeMoves()
+    }
+
+    private fun clickBtn(name: String, defaultX: Int, defaultY: Int, skipDefault: Boolean = true): Boolean {
+        val btnList =
+            gestureService.rootInActiveWindow.findAccessibilityNodeInfosByText(name)
+        if (btnList.isNotEmpty() && btnList[0].isVisibleToUser) {
+            Log.d(TAG, "clickBtn: found btn '$name', clicking: $btnList")
+            btnList[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            return true
+        } else {
+            if (!skipDefault) {
+                Log.d(TAG, "clickBtn: btn '$name' not found, using default coords")
+                gestureService.click(defaultX, defaultY)
+            }
+            return false
+        }
     }
 
     //keep doing screen capture when it's initialized already
@@ -608,7 +647,7 @@ class SolveService : Service() {
                 .addOnSuccessListener {result ->
                     // Task completed successfully
                     val resultText = result.text//full text
-                    Log.d(TAG, "process: OCR Done:\n$resultText")
+//                    Log.d(TAG, "process: OCR Done:\n$resultText")
                     val (puzzleNums, puzzleType) = parsePuzzleFromText(result)
                     if (puzzleNums.size < 8) {
                         it.resumeWithException(IllegalStateException(
@@ -852,7 +891,7 @@ class SolveService : Service() {
                 mProcessedBitmap?.recycle()
                 // Task completed successfully
                 val resultText = result.text//full text
-                Log.d(TAG, "process: OCR Done:\n$resultText")
+//                Log.d(TAG, "process: OCR Done:\n$resultText")
                 val (puzzleNums, puzzleType) = parsePuzzleFromText(result)
                 if (puzzleNums.size < 8) { // minimum 8 numbers not matched, fail
                     Log.e(
@@ -919,7 +958,7 @@ class SolveService : Service() {
                     val recognizerC = TextRecognition.getClient()
                     recognizerC.process(imgC)
                         .addOnSuccessListener { resultC ->
-                            Log.d(TAG, "process: cropped OCR Done:\n${resultC.text}")
+//                            Log.d(TAG, "process: cropped OCR Done:\n${resultC.text}")
                             val (puzzleNumsC, puzzleTypeC) = parsePuzzleFromText(resultC)
                             val puzzleSizeC = sqrt(puzzleNumsC.size.toDouble())
                             val strC = puzzleNumsC.withIndex()

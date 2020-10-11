@@ -37,7 +37,7 @@ class GestureService : AccessibilityService() {
 
     private var resultCallback: GestureResultCallback? = null
 
-    private var delay = 0
+    private var delay = 0 // delay after each gesture
 
     fun setCallback(callback: GestureResultCallback?) {
         resultCallback = callback

@@ -6,6 +6,7 @@ import android.util.Log
 import com.jackz314.puzzlesolver.TorusPuzzleSolver.Companion.Dir.*
 import com.jackz314.puzzlesolver.TorusPuzzleSolver.Companion.Dir.R
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -17,20 +18,25 @@ class MoveMaker(
     private val boardConfig: BoardConfig,
     private val listener: MovingStateListener,
     private val duration: Int = 10,
+    private val delay: Int = 0,
     private val swipeDistance: Float = boardConfig.blockSideLen,
 ) {
 
     data class BoardConfig(val size: Int, val blockSideLen: Float, val xStart: Float, val yStart: Float,
-                           val xEnd: Float = xStart + (size-1) * blockSideLen,
-                           val yEnd: Float = yStart + (size-1) * blockSideLen){
-        val colLocations = Array(size){xStart + it * blockSideLen}
-        val rowLocations = Array(size){yStart + it * blockSideLen}//contains horizontal coordinates of each column (x locations)
+                           val xEnd: Float = xStart + (size - 1) * blockSideLen,
+                           val yEnd: Float = yStart + (size - 1) * blockSideLen) {
+        val colLocations = Array(size) {xStart + it * blockSideLen}
+        val rowLocations =
+            Array(size) {yStart + it * blockSideLen}//contains horizontal coordinates of each column (x locations)
+
         override fun toString(): String =
             "BoardConfig(size=$size, blockSideLen=$blockSideLen, xStart=$xStart, yStart=$yStart, xEnd=$xEnd, yEnd=$yEnd\n" +
-                    "colLocations=${colLocations.contentToString()}, rowLocations=${rowLocations.contentToString()})"
+                "colLocations=${colLocations.contentToString()}, rowLocations=${rowLocations.contentToString()})"
     }
 
     private val shift = 0
+
+    private var moveJob: Job? = null
 
     // if null that means something is wrong, accessibility service not available in this app
     private val gestureService = GestureService.getInstance()!!/*.apply{
@@ -54,10 +60,15 @@ class MoveMaker(
     private suspend fun makeMove(move: P, _cnt: Int = 1) = suspendCancellableCoroutine<Unit> {
         val cnt = _cnt % boardConfig.size
         if (cnt == 0) {
-            it.resume(Unit);return@suspendCancellableCoroutine
+            it.resume(Unit); return@suspendCancellableCoroutine
         } // no need to move anything
-        //set up callback first
+
+        //cancelled, stop here
+        if (moveJob == null) return@suspendCancellableCoroutine
+
         listener.movePrepared(move, cnt)
+
+        //set up callback first
         gestureService.setCallback(object : AccessibilityService.GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription?) {
                 super.onCompleted(gestureDescription)
@@ -103,8 +114,9 @@ class MoveMaker(
         moves.add(move)
     }
 
-    fun makeMoves(){
-        GlobalScope.launch {
+    fun makeMoves() {
+        moveJob = GlobalScope.launch {
+            gestureService.setDelay(delay)
             var i = 0
             while (i < moves.size) {
                 val a = moves[i]
@@ -120,7 +132,12 @@ class MoveMaker(
         }
     }
 
-    interface MovingStateListener{
+    fun cancelMoves() {
+        moveJob?.cancel()
+        moveJob = null
+    }
+
+    interface MovingStateListener {
         fun movePrepared(move: P, cnt: Int)
         fun moveComplete(move: P, cnt: Int)
         fun moveCancelled(move: P, cnt: Int)

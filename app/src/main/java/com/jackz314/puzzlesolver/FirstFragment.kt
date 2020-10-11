@@ -10,6 +10,7 @@ import android.widget.CheckBox
 import android.widget.EditText
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
+import com.jackz314.puzzlesolver.MainActivity.Companion.delayPref
 import com.jackz314.puzzlesolver.MainActivity.Companion.durationPref
 import com.jackz314.puzzlesolver.MainActivity.Companion.expIdlePref
 import com.jackz314.puzzlesolver.MainActivity.Companion.useRootPref
@@ -37,6 +38,8 @@ class FirstFragment : Fragment() {
                 getString(R.string.preference_file_key), Context.MODE_PRIVATE)
             view.findViewById<EditText>(R.id.durationEdit).setText(
                 sharedPref.getInt(durationPref, -1).toString().let {if (it == "-1") "" else it})
+            view.findViewById<EditText>(R.id.delayEdit).setText(
+                sharedPref.getInt(delayPref, -1).toString().let {if (it == "-1") "" else it})
             view.findViewById<CheckBox>(R.id.expIdleCheck).isChecked =
                 sharedPref.getBoolean(expIdlePref, false)
             view.findViewById<CheckBox>(R.id.useRootCheck).isChecked =
