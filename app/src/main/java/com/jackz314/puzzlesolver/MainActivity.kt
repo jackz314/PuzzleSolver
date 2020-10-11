@@ -18,6 +18,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.text.isDigitsOnly
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.io.DataOutputStream
@@ -26,6 +27,12 @@ import java.io.DataOutputStream
 private const val TAG = "MainActivity"
 
 class MainActivity : AppCompatActivity() {
+
+    companion object {
+        val durationPref = "DURATION"
+        val expIdlePref = "EXPONENTIAL_IDLE"
+        val useRootPref = "USE_ROOT"
+    }
 
     private val overlayRC = 1023
     private val accessRC = 2023
@@ -51,7 +58,21 @@ class MainActivity : AppCompatActivity() {
     private fun start(){
         if(!SolveService.running) {
             val intent = Intent(applicationContext, SolveService::class.java)
-            intent.putExtra("DURATION", findViewById<EditText>(R.id.durationEdit).text.toString().run { if(length > 0 && isDigitsOnly()) toInt() else 20 })
+            val swipeDuration =
+                findViewById<EditText>(R.id.durationEdit).text.toString().run {if (length > 0 && isDigitsOnly()) toInt() else 10}
+            val isExpIdle = findViewById<CheckBox>(R.id.expIdleCheck).isChecked
+            GlobalScope.launch(Dispatchers.IO) {
+                val sharedPref = getSharedPreferences(
+                    getString(R.string.preference_file_key), Context.MODE_PRIVATE)
+                with(sharedPref.edit()) {
+                    putInt(durationPref, swipeDuration)
+                    putBoolean(expIdlePref, isExpIdle)
+                    putBoolean(useRootPref, findViewById<CheckBox>(R.id.useRootCheck).isChecked)
+                    apply()
+                }
+            }
+            intent.putExtra(durationPref, swipeDuration)
+            intent.putExtra(expIdlePref, isExpIdle)
             startService(intent)
             Intent(this, SolveService::class.java).apply {
                 bindService(this, connection, Context.BIND_ABOVE_CLIENT)
@@ -63,8 +84,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun stop(): Boolean{
         return if(SolveService.running) {
-            stopService(Intent(applicationContext, SolveService::class.java))
-            unbindService(connection)
+            mService?.exit()
+//            stopService(Intent(applicationContext, SolveService::class.java))
+            try {
+                unbindService(connection)
+            } catch (e: Exception) {
+                Log.d(TAG, "stop: unbind failed")
+            }
             true
         }else false
     }
@@ -112,15 +138,18 @@ class MainActivity : AppCompatActivity() {
                 startActivityForResult(intent, overlayRC)
             }
         }else{//ask for permission
-            if(findViewById<CheckBox>(R.id.checkBox).isChecked){//try root process
+            if (findViewById<CheckBox>(R.id.useRootCheck).isChecked) {//try root process
                 //enable accessibility services with root cmd
                 GlobalScope.launch {
-                    runRootCmds(arrayOf("settings put secure enabled_accessibility_services $packageName/.${GestureService::class.java.simpleName}"))
-                    if(Utils.isAccessibilityServiceEnabled(applicationContext, GestureService::class.java)) runOnUiThread {
+                    runRootCmds(arrayOf(
+                        "settings delete secure ${Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES}",
+                        "settings put secure ${Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES} $packageName/.${GestureService::class.java.simpleName}",
+                        "settings put secure ${Settings.Secure.ACCESSIBILITY_ENABLED} 1"))
+                    if (Utils.isAccessibilityServiceEnabled(applicationContext, GestureService::class.java)) runOnUiThread {
                         Toast.makeText(applicationContext, "Enabled accessibility service with root!", Toast.LENGTH_SHORT).show()
-                        start()
+                        tryStart()
                     }
-                    else runOnUiThread { promptForAccessibilityService() }
+                    else runOnUiThread {promptForAccessibilityService()}
                 }
             }else{
                 promptForAccessibilityService()
@@ -144,22 +173,31 @@ class MainActivity : AppCompatActivity() {
         startActivityForResult(intent, accessRC)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (SolveService.running) {
+            fab.setImageResource(R.drawable.ic_stop_24)
+        } else {
+            fab.setImageResource(R.drawable.ic_play_24)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         setSupportActionBar(findViewById(R.id.toolbar))
 
         fab = findViewById(R.id.fab)
-        fab.setOnClickListener { view ->
-            if(!SolveService.running){
+        fab.setOnClickListener {
+            if (!SolveService.running) {
 //                Snackbar.make(view, "Starting", Snackbar.LENGTH_SHORT).show()
                 Toast.makeText(applicationContext, "Starting", Toast.LENGTH_SHORT).show()
                 tryStart()
-            }else{
+            } else {
 //                Snackbar.make(view, "Stoping", Snackbar.LENGTH_SHORT).show()
                 Toast.makeText(applicationContext, "Stopping", Toast.LENGTH_SHORT).show()
-                fab.setImageResource(R.drawable.ic_play_24)
                 stop()
+                fab.setImageResource(R.drawable.ic_play_24)
             }
         }
     }

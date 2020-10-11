@@ -16,7 +16,7 @@ class MoveMaker(
     private val moves: MutableList<P>,
     private val boardConfig: BoardConfig,
     private val listener: MovingStateListener,
-    private val duration: Int = 20,
+    private val duration: Int = 10,
     private val swipeDistance: Float = boardConfig.blockSideLen,
 ) {
 
@@ -51,43 +51,50 @@ class MoveMaker(
     })}*/
 
     //repeat the move cnt times
-    private suspend fun makeMove(move: P, cnt: Int = 1) = suspendCancellableCoroutine<Unit> {
+    private suspend fun makeMove(move: P, _cnt: Int = 1) = suspendCancellableCoroutine<Unit> {
+        val cnt = _cnt % boardConfig.size
+        if (cnt == 0) {
+            it.resume(Unit);return@suspendCancellableCoroutine
+        } // no need to move anything
         //set up callback first
         listener.movePrepared(move, cnt)
         gestureService.setCallback(object : AccessibilityService.GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription?) {
                 super.onCompleted(gestureDescription)
-                Log.v(TAG, "onCompleted: Gesture complete: move: $move, count: $cnt")
-                listener.moveComplete(move,cnt)
-                if(it.isActive) it.resume(Unit)
+//                Log.v(TAG, "onCompleted: Gesture complete: move: $move, count: $cnt")
+                listener.moveComplete(move, cnt)
+                if (it.isActive) it.resume(Unit)
             }
 
             override fun onCancelled(gestureDescription: GestureDescription?) {
                 super.onCancelled(gestureDescription)
-                Log.v(TAG, "onCancelled: Gesture cancelled: move: $move, count: $cnt")
-                listener.moveCancelled(move,cnt)
-                if(it.isActive) it.resume(Unit)
+                Log.d(TAG, "onCancelled: Gesture cancelled: move: $move, count: $cnt")
+                listener.moveCancelled(move, cnt)
+                if (it.isActive) it.resume(Unit)
             }
         })
 
 //        moveIdx += cnt
 //        moveCnt = cnt
-
         val (dir, loc) = move
         when (dir) {
             U, D -> {//start swiping from the first/last element of the column, by count*blockSideLen amount
                 val x = boardConfig.colLocations[loc]
-                val y = if(dir == D) boardConfig.yStart else boardConfig.yEnd
+                val y = if (dir == D) boardConfig.yStart else boardConfig.yEnd
                 val dx = 0F
-                val dy = if (dir == D) boardConfig.blockSideLen * cnt else -boardConfig.blockSideLen * cnt
-                gestureService.swipe(x+shift, y+shift, dx, dy, duration*cnt)
+                val dy =
+                    if (dir == D) boardConfig.blockSideLen * cnt else -boardConfig.blockSideLen * cnt
+//                Log.d(TAG, "makeMove: $move - $cnt, $x, $y, $dx, $dy")
+                gestureService.swipe(x + shift, y + shift, dx, dy, duration * cnt)
             }
             L, R -> {//start swiping from the first/last element of the row, by count*blockSideLen amount
-                val x = if(dir == R) boardConfig.xStart else boardConfig.xEnd
+                val x = if (dir == R) boardConfig.xStart else boardConfig.xEnd
                 val y = boardConfig.rowLocations[loc]
-                val dx = if (dir == R) boardConfig.blockSideLen * cnt else -boardConfig.blockSideLen * cnt
+                val dx =
+                    if (dir == R) boardConfig.blockSideLen * cnt else -boardConfig.blockSideLen * cnt
                 val dy = 0F
-                gestureService.swipe(x+shift, y+shift, dx, dy, duration*cnt)
+//                Log.d(TAG, "makeMove: $move - $cnt, $x, $y, $dx, $dy")
+                gestureService.swipe(x + shift, y + shift, dx, dy, duration * cnt)
             }
         }
     }
@@ -102,7 +109,7 @@ class MoveMaker(
             while (i < moves.size) {
                 val a = moves[i]
                 var cnt = 1
-                if(i < moves.size - 1) while (a == moves[++i]) ++cnt // stack same moves to execute together
+                if (i < moves.size - 1) while (i < moves.size - 1 && a == moves[++i]) ++cnt // stack same moves to execute together
                 else ++i
 //                Log.d(TAG, "makeMoves: MOVING: ${i-1} ${moves[i-1]} $cnt")
                 makeMove(a, cnt)

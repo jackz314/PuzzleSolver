@@ -7,18 +7,18 @@ import kotlin.math.abs
 
 typealias P = Pair<Dir, Int>
 
-class TorusPuzzleSolver(list: MutableList<MutableList<Int>>) {
+class TorusPuzzleSolver(list: List<List<Int>>) {
 
-    companion object{
-        enum class Dir{
+    companion object {
+        enum class Dir {
             L, R, U, D
         }
     }
 
-    private val a = list
+    private val a = list.map {it.toMutableList()}.toMutableList()
     private val b = a.flatten().sorted().toMutableList()
     private val len = a.size
-    private val lastIdx = len-1
+    private val lastIdx = len - 1
     private val r = mutableListOf<P>()
 
     fun solve(): List<P>{
