@@ -1,7 +1,6 @@
 # PuzzleSolver
 Puzzle Solver currently capable of solving torus puzzles automatically.
 
-
 ### Implementation
 It uses OCR to analyze the puzzle, then uses Accessibility Services to automatically solve it. 
 
@@ -14,3 +13,13 @@ In my experience the app on average solves a 6x6 torus puzzle in about 2 seconds
 
 ### Supported Environments
 So far, only tested on [Exponential Idle](https://play.google.com/store/apps/details?id=com.conicgames.exponentialidle), but theoritically as long as the puzzles are number based and clearly identifiable, they should be solvable with this app.
+
+### Roadmap?
+This app is a simple quick "hack" that I put together in a short time (as you can see from the spaghetti code). But there are some potential improvements that could be implemented in the future:
+
+- [ ] Improve "farming"/continuous mode with Accessibility Service stuff
+- [ ] Improve OCR performance
+- [ ] More puzzle support (e.g. IDA* for 15-puzzles)
+- [ ] Better UI
+
+In addition, feel free to contribute ideas or implementations with PRs or Issues.
